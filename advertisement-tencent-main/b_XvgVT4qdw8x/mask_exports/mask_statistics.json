@@ -1,0 +1,32 @@
+{
+  "total_frames": 300,
+  "frames_with_mask": 283,
+  "detection_rate": "94.3%",
+  "bounding_box": {
+    "avg_width": 382.4911660777385,
+    "avg_height": 466.7773851590106,
+    "min_width": 144,
+    "max_width": 864,
+    "min_height": 144,
+    "max_height": 720,
+    "avg_x": 517.8445229681979,
+    "avg_y": 213.08480565371025
+  },
+  "area": {
+    "avg": 28879.625441696113,
+    "min": 10420.0,
+    "max": 144599.0
+  },
+  "time_range": {
+    "start_s": 0.0,
+    "end_s": 9.966666666666667,
+    "duration_s": 10.0
+  },
+  "video_info": {
+    "frames": 300,
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720,
+    "duration_s": 10.0
+  }
+}

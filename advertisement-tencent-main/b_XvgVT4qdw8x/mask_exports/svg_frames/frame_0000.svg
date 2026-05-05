@@ -1,0 +1,8 @@
+<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+<rect width="100%" height="100%" fill="white"/>
+<!-- Frame 0 at 0.00s -->
+<rect x="632" y="144" width="354" height="456" stroke="orange" stroke-width="3" fill="none"/>
+<polygon points="746,146 766,329 688,296 656,357 704,453 648,416 632,461 712,581 877,593 973,501 983,370 877,261 877,148" stroke="yellow" stroke-width="2" fill="none"/>
+<circle cx="809.0" cy="372.0" r="5" fill="blue" opacity="0.7"/>
+<text x="10" y="20" font-size="14" fill="black">Frame: 0 | Time: 0.00s</text>
+</svg>
