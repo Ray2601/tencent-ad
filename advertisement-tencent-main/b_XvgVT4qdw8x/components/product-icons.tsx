@@ -278,6 +278,18 @@ export function BrandLogo({ brand, size = 32 }: { brand: Brand; size?: number })
         <path d="M10 16C10 16 12 12 16 12C20 12 22 16 22 16" stroke="#FFFFFF" strokeWidth="2" />
       </svg>
     ),
+    vancleefarpels: (
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="12" fill="#9F7A4F" />
+        <path d="M16 6L19 13L26 16L19 19L16 26L13 19L6 16L13 13L16 6Z" fill="#F8F1E7" />
+      </svg>
+    ),
+    fangchao: (
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="8" fill="#F472B6" />
+        <text x="16" y="20" textAnchor="middle" fill="#111827" fontSize="12" fontWeight="bold">方</text>
+      </svg>
+    ),
   }
 
   return <div className="flex items-center justify-center">{logos[brand]}</div>

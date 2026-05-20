@@ -38,9 +38,12 @@ type MaskData = {
   frames: MaskFrame[]
 }
 
+type ClickTagProduct = Product & {
+  collectible?: boolean
+}
+
 interface VideoPlayerProps {
   src?: string
-  maskSrc?: string
   maskData?: MaskData
   maskRewardProduct?: Product
   adTriggerPoints: AdTriggerPoint[]
@@ -48,7 +51,7 @@ interface VideoPlayerProps {
   onAdEnded: () => void
   onMaskCompleted?: (product: Product) => void
   onMaskHit?: (hitCount: number) => void
-  collectibleCatalog?: Product[]
+  collectibleCatalog?: ClickTagProduct[]
   onCollectibleCollected?: (product: Product) => void
   dropTargetRef?: RefObject<HTMLElement | null>
   onCharacterClick?: () => void
@@ -61,13 +64,13 @@ interface VideoPlayerProps {
   onPlay?: () => void
   onTimeUpdate?: (currentTime: number, duration: number) => void
   onPhaseChange?: (phase: 'main' | 'mask' | 'collected') => void
+  showMask?: boolean
 }
 
 const REQUIRED_HITS = 5
 
 export function VideoPlayer({
   src,
-  maskSrc,
   maskData,
   maskRewardProduct,
   adTriggerPoints,
@@ -88,6 +91,7 @@ export function VideoPlayer({
   onPlay,
   onTimeUpdate,
   onPhaseChange,
+  showMask = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -110,11 +114,12 @@ export function VideoPlayer({
   const [damageTexts, setDamageTexts] = useState<Array<{ id: number; x: number; y: number; hit: boolean }>>([])
   const [justHit, setJustHit] = useState(false)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
-  const [collectedToast, setCollectedToast] = useState<null | { id: number; product: Product }>(null)
+  const [collectedToast, setCollectedToast] = useState<null | { id: number; product: Product; collected: boolean }>(null)
 
   const isMaskPhase = phase === 'mask'
   const isMaskCompleted = phase === 'collected'
-  const activeSrc = isMaskPhase && maskSrc ? maskSrc : src
+  const isQuickClickActive = Boolean(maskData && collectibleCatalog.length > 0 && !isMaskCompleted)
+  const activeSrc = src
 
   useEffect(() => {
     onPhaseChange?.(phase)
@@ -142,22 +147,39 @@ export function VideoPlayer({
   }, [maskData])
 
   const activeMaskFrame = useMemo(() => {
-    if (!maskData || !isMaskPhase) return null
+    if (!maskData || !isQuickClickActive) return null
     const frameId = Math.max(0, Math.min(maskData.video_info.frames - 1, Math.round(currentTime * maskData.video_info.fps)))
     return frameById.get(frameId) ?? null
-  }, [currentTime, frameById, isMaskPhase, maskData])
+  }, [currentTime, frameById, isQuickClickActive, maskData])
 
   const frameCollectible = useMemo(() => {
-    if (collectibleCatalog.length === 0 || isMaskCompleted || isAdActive) return null
+    if (collectibleCatalog.length === 0 || !isQuickClickActive || !isPlaying || isMaskCompleted || isAdActive) return null
     const frameId = Math.max(0, Math.floor(currentTime * 30))
     const stableSlot = Math.floor(frameId / 15)
-    const product = collectibleCatalog[frameId % collectibleCatalog.length]
+    const product = collectibleCatalog[stableSlot % collectibleCatalog.length]
+    const mask = activeMaskFrame?.yellow_mask
+
+    if (mask && maskData) {
+      const box = mask.bounding_box
+      const centerX = ((box.x + box.width / 2) / maskData.video_info.width) * 100
+      const centerY = ((box.y + box.height / 2) / maskData.video_info.height) * 100
+      const radiusX = Math.max(12, (box.width / maskData.video_info.width) * 70)
+      const radiusY = Math.max(10, (box.height / maskData.video_info.height) * 70)
+      const angle = (stableSlot * 137.5 * Math.PI) / 180
+
+      return {
+        product,
+        x: Math.min(86, Math.max(6, centerX + Math.cos(angle) * radiusX)),
+        y: Math.min(78, Math.max(8, centerY + Math.sin(angle) * radiusY)),
+      }
+    }
+
     return {
       product,
       x: 16 + ((stableSlot * 29) % 58),
       y: 16 + ((stableSlot * 17) % 46),
     }
-  }, [collectibleCatalog, currentTime, isAdActive, isMaskCompleted])
+  }, [activeMaskFrame, collectibleCatalog, currentTime, isAdActive, isMaskCompleted, isPlaying, isQuickClickActive, maskData])
 
   const outfitIndex = useMemo(() => Math.floor(currentTime / 4) % 3, [currentTime])
   const isClimaxWindow = duration > 0 && duration - currentTime <= 3 && currentTime > duration * 0.55
@@ -189,10 +211,13 @@ export function VideoPlayer({
   const togglePlay = useCallback(() => {
     if (!videoRef.current || isAdActive || isMaskCompleted) return
 
-    if (isPlaying) {
-      videoRef.current.pause()
-    } else {
-      void videoRef.current.play()
+    const video = videoRef.current
+    if (video instanceof HTMLVideoElement) {
+      if (isPlaying) {
+        video.pause()
+      } else {
+        void video.play()
+      }
     }
     setIsPlaying(!isPlaying)
   }, [isPlaying, isAdActive, isMaskCompleted])
@@ -200,22 +225,23 @@ export function VideoPlayer({
   const skipAd = useCallback(() => {
     onAdEnded()
     setCurrentAdEndTime(null)
-    if (videoRef.current) {
+    if (videoRef.current && videoRef.current instanceof HTMLVideoElement) {
       void videoRef.current.play()
       setIsPlaying(true)
     }
   }, [onAdEnded])
 
-  const collectProduct = useCallback((product: Product) => {
-    onCollectibleCollected?.(product)
+  const collectProduct = useCallback((product: ClickTagProduct) => {
+    const canCollect = product.collectible !== false
+    if (canCollect) onCollectibleCollected?.(product)
     const id = Date.now()
-    setCollectedToast({ id, product })
+    setCollectedToast({ id, product, collected: canCollect })
     window.setTimeout(() => {
       setCollectedToast(current => (current?.id === id ? null : current))
     }, 1300)
   }, [onCollectibleCollected])
 
-  const handleCollectibleDragEnd = useCallback((product: Product, point: { x: number; y: number }) => {
+  const handleCollectibleDragEnd = useCallback((product: ClickTagProduct, point: { x: number; y: number }) => {
     const rect = dropTargetRef?.current?.getBoundingClientRect()
     const droppedOnCharacter =
       rect &&
@@ -229,7 +255,7 @@ export function VideoPlayer({
 
   const redeemClimaxSkip = useCallback(() => {
     if (!onRedeemSkip?.()) return
-    if (videoRef.current) {
+    if (videoRef.current && videoRef.current instanceof HTMLVideoElement) {
       videoRef.current.currentTime = Math.max(0, duration - 0.15)
       void videoRef.current.play()
       setIsPlaying(true)
@@ -247,24 +273,12 @@ export function VideoPlayer({
     const video = videoRef.current
     if (!video) return
     setDuration(video.duration || 0)
-    if (isMaskPhase) {
-      setCurrentTime(0)
-      void video.play()
-      setIsPlaying(true)
-    }
-  }, [isMaskPhase])
+  }, [])
 
   const handleEnded = useCallback(() => {
-    if (phase === 'main' && maskSrc) {
-      setPhase('mask')
-      setCurrentTime(0)
-      setDuration(0)
-      setHitCount(0)
-      setShowControls(true)
-      return
-    }
     setIsPlaying(false)
-  }, [phase, maskSrc])
+    setShowControls(true)
+  }, [])
 
   const handleSeek = useCallback((value: number[]) => {
     if (videoRef.current && !isAdActive && !isMaskCompleted) {
@@ -435,7 +449,7 @@ export function VideoPlayer({
       className={cn('relative overflow-hidden rounded-xl bg-black', isMaskPhase && 'cursor-crosshair', className)}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && !isMaskPhase && setShowControls(false)}
-      onClick={isMaskPhase ? fireAt : undefined}
+      onClick={undefined}
     >
       {activeSrc ? (
         <video
@@ -446,7 +460,6 @@ export function VideoPlayer({
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={handleEnded}
-          onClick={isMaskPhase ? undefined : togglePlay}
           onPause={onPause}
           onPlay={onPlay}
           playsInline
@@ -473,9 +486,13 @@ export function VideoPlayer({
             whileDrag={{ scale: 1.12, rotate: -6, zIndex: 70 }}
             onClick={event => {
               event.stopPropagation()
+              collectProduct(frameCollectible.product)
             }}
             onDragEnd={(_, info) => handleCollectibleDragEnd(frameCollectible.product, info.point)}
-            className="absolute z-30 flex cursor-grab items-center gap-2 rounded-full border-2 border-primary bg-white/95 px-3 py-2 text-slate-950 shadow-2xl active:cursor-grabbing"
+            className={cn(
+              'absolute z-30 flex cursor-pointer items-center gap-2 rounded-full border-2 bg-white/95 px-3 py-2 text-slate-950 shadow-2xl active:cursor-grabbing',
+              frameCollectible.product.collectible === false ? 'border-white/50 opacity-90' : 'border-primary'
+            )}
             style={{
               left: `${frameCollectible.x}%`,
               top: `${frameCollectible.y}%`,
@@ -489,11 +506,25 @@ export function VideoPlayer({
               {frameCollectible.product.name}
             </span>
             <span className="rounded-full bg-orange-400 px-2 py-0.5 text-[10px] font-bold text-white">
-              +{frameCollectible.product.points}
+              {frameCollectible.product.collectible === false ? '干扰' : `+${frameCollectible.product.points}`}
             </span>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!isPlaying && !isAdActive && !isMaskCompleted && (
+        <button
+          type="button"
+          onClick={event => {
+            event.stopPropagation()
+            togglePlay()
+          }}
+          className="absolute left-1/2 top-1/2 z-30 grid h-16 w-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-950 shadow-2xl transition hover:scale-105 hover:bg-white"
+          aria-label="播放"
+        >
+          <Play className="ml-1 h-8 w-8 fill-current" />
+        </button>
+      )}
 
       <AnimatePresence>
         {collectedToast && (
@@ -504,13 +535,13 @@ export function VideoPlayer({
             exit={{ opacity: 0, y: -8, scale: 0.9 }}
             className="absolute right-4 top-4 z-50 rounded-full bg-orange-500 px-4 py-2 text-sm font-black text-white shadow-xl"
           >
-            +{collectedToast.product.points} 积分
+            {collectedToast.collected ? `+${collectedToast.product.points} 积分` : '未加入背包'}
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {isMaskPhase && !isMaskCompleted && (
+        {isMaskPhase && !isMaskCompleted && showMask && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -13,18 +13,30 @@ import { cn } from '@/lib/utils'
 import maskPositions from '../mask_positions.json'
 
 const TARGET_HITS = 5
-const collectibleProducts = productCatalog.filter(product => !product.exchangeRequirement)
 
-const maskRewardProduct: Product = {
-  id: 'chanel-perfume-bottle',
-  name: '香奈儿香水',
-  image: '/products/perfume.png',
-  brand: 'chanel',
-  category: 'luxury',
-  description: '命中 5 次后从高光广告中收集',
-  rarity: 'legendary',
-  points: 160,
-  purchaseUrl: 'https://www.chanel.com/us/fragrance/',
+type MaskData = {
+  video_info: {
+    frames: number
+    fps: number
+    width: number
+    height: number
+    duration_s: number
+  }
+  frames: Array<{
+    frame_id: number
+    timestamp_s: number
+    yellow_mask: null | {
+      bounding_box: {
+        x: number
+        y: number
+        width: number
+        height: number
+        x_max: number
+        y_max: number
+      }
+      contour_points?: number[][]
+    }
+  }>
 }
 
 const episodeList = [
@@ -42,6 +54,84 @@ const episodeList = [
   { no: 12, badge: 'VIP' },
 ] as const
 
+// 视频序列配置
+interface VideoSequenceItem {
+  id: string
+  src: string
+  type: 'interactive' | 'shooting' | 'climax'
+  maskData?: MaskData
+  maskRewardProduct?: Product
+  duration?: number
+}
+
+const videoSequence: VideoSequenceItem[] = [
+  {
+    id: 'van-cleef',
+    src: '/van-cleef-arpels.mp4',
+    type: 'interactive',
+    maskData: maskPositions as MaskData,
+    maskRewardProduct: {
+      id: 'vca-necklace',
+      name: '项链',
+      image: '/products/perfume.png',
+      brand: 'vancleefarpels',
+      category: 'luxury',
+      description: '命中 5 次后从 Van Cleef&Arpels 高光广告中收集',
+      rarity: 'legendary',
+      points: 240,
+      purchaseUrl: 'https://www.vancleefarpels.com/',
+    },
+  },
+  {
+    id: 'shooting',
+    src: '/video.mp4',
+    type: 'shooting',
+    duration: 30,
+  },
+  {
+    id: 'chanel',
+    src: '/video.mp4',
+    type: 'climax',
+    duration: 30,
+  },
+]
+
+const quickClickProductIds = new Set([
+  'vca-bracelet',
+  'vca-ring',
+  'vca-necklace',
+  'vca-earrings',
+  'fangchao-rich-look-1',
+  'fangchao-fit-look-2',
+  'fangchao-maid-look',
+])
+const collectibleProducts = productCatalog.filter(product => quickClickProductIds.has(product.id))
+const quickClickTags = [
+  ...collectibleProducts,
+  {
+    id: 'decoy-chanel-bag',
+    name: '香奈儿链条包',
+    image: '/products/perfume.png',
+    brand: 'chanel',
+    category: 'luxury',
+    description: '干扰标签，点击不会加入背包。',
+    rarity: 'rare',
+    points: 0,
+    collectible: false,
+  },
+  {
+    id: 'decoy-coca-cola',
+    name: '可口可乐气泡瓶',
+    image: '/products/perfume.png',
+    brand: 'cocacola',
+    category: 'beverage',
+    description: '干扰标签，点击不会加入背包。',
+    rarity: 'common',
+    points: 0,
+    collectible: false,
+  },
+] satisfies Array<Product & { collectible?: boolean }>
+
 export default function InteractiveAdPage() {
   const {
     backpack,
@@ -57,6 +147,9 @@ export default function InteractiveAdPage() {
   const characterRef = useRef<HTMLDivElement>(null)
   const previousPhaseRef = useRef<'main' | 'mask' | 'collected'>('main')
 
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
+  const [showClimaxModal, setShowClimaxModal] = useState(false)
+  const [climaxSkipped, setClimaxSkipped] = useState(false)
   const [characterEmotion, setCharacterEmotion] = useState<CharacterEmotion>('expectant')
   const [receivedProduct, setReceivedProduct] = useState<Product | null>(null)
   const [hitCount, setHitCount] = useState(0)
@@ -67,10 +160,13 @@ export default function InteractiveAdPage() {
 
   const isCollectMode = videoPhase === 'mask' && !isCollected
   const currentDurability = Math.max(0, TARGET_HITS - hitCount)
+  const currentVideo = videoSequence[currentVideoIndex]
+  const maskRewardProduct = currentVideo.maskRewardProduct
 
   const relatedExchangeProducts = useMemo(() => {
+    if (!maskRewardProduct) return []
     return productCatalog.filter(product => product.brand === maskRewardProduct.brand && product.exchangeRequirement)
-  }, [])
+  }, [maskRewardProduct])
 
   useEffect(() => {
     if (videoPhase === 'main') {
@@ -102,10 +198,10 @@ export default function InteractiveAdPage() {
     setCharacterEmotion('attacking')
     logAction({
       type: 'mask_hit',
-      productId: maskRewardProduct.id,
+      productId: maskRewardProduct?.id || '',
       details: { hitCount: nextHitCount },
     })
-  }, [logAction])
+  }, [logAction, maskRewardProduct?.id])
 
   const handleMaskCompleted = useCallback((product: Product) => {
     const success = addItem(product)
@@ -125,10 +221,17 @@ export default function InteractiveAdPage() {
     setReceivedProduct(product)
     logAction({ type: 'mask_collect', productId: product.id })
 
+    // 自动切换到下一个视频
     window.setTimeout(() => {
       setReceivedProduct(null)
+      if (currentVideoIndex < videoSequence.length - 1) {
+        setCurrentVideoIndex(currentVideoIndex + 1)
+        setVideoPhase('main')
+        setHitCount(0)
+        setIsCollected(false)
+      }
     }, 2400)
-  }, [addItem, logAction])
+  }, [addItem, logAction, currentVideoIndex])
 
   const handleCollectibleCollected = useCallback((product: Product) => {
     const success = addItem(product)
@@ -148,16 +251,6 @@ export default function InteractiveAdPage() {
     window.setTimeout(() => setReceivedProduct(null), 1800)
   }, [addItem, logAction])
 
-  const handleRedeemSkip = useCallback(() => {
-    const success = spendPoints(skipAdCost)
-    if (success) {
-      setCharacterEmotion('happy')
-      logAction({ type: 'redeem_skip', details: { cost: skipAdCost } })
-    } else {
-      setCharacterEmotion('surprised')
-    }
-    return success
-  }, [logAction, spendPoints])
 
   const handleExchange = useCallback((product: Product) => {
     const success = exchangeItem(product)
@@ -175,6 +268,26 @@ export default function InteractiveAdPage() {
     setShowCharacterPanel(true)
     logAction({ type: 'open_character' })
   }, [logAction])
+
+  const handleVideoTimeUpdate = useCallback((currentTime: number, duration: number) => {
+    // 检查是否到达高潮广告阶段（最后 3 秒）
+    if (currentVideo.type === 'climax' && !climaxSkipped && duration > 0 && duration - currentTime <= 3 && currentTime > duration * 0.55) {
+      setShowClimaxModal(true)
+    }
+  }, [currentVideo.type, climaxSkipped])
+
+  const handleRedeemClimaxSkip = useCallback(() => {
+    const success = spendPoints(skipAdCost)
+    if (success) {
+      setCharacterEmotion('happy')
+      setClimaxSkipped(true)
+      setShowClimaxModal(false)
+      logAction({ type: 'redeem_skip', details: { cost: skipAdCost } })
+    } else {
+      setCharacterEmotion('surprised')
+    }
+    return success
+  }, [spendPoints, logAction])
 
   const rightPanel = rightPanelMode === 'collect' ? (
     <CollectStagePanel
@@ -236,26 +349,48 @@ export default function InteractiveAdPage() {
       <div className="mx-auto grid w-full max-w-[1880px] grid-cols-1 gap-5 p-4 lg:grid-cols-[minmax(0,2fr)_520px] lg:p-6">
         <section className="relative min-h-[58vh] overflow-hidden rounded-2xl bg-black lg:min-h-[calc(100vh-140px)]">
           <VideoPlayer
-            src="/video.mp4"
-            maskSrc="/mask.mp4"
-            maskData={maskPositions}
-            maskRewardProduct={maskRewardProduct}
+            key={currentVideoIndex}
+            src={currentVideo.src}
+            maskData={currentVideo.maskData}
+            maskRewardProduct={currentVideo.maskRewardProduct}
             adTriggerPoints={[]}
             onAdTriggered={() => undefined}
             onAdEnded={() => undefined}
             onMaskHit={handleMaskHit}
             onMaskCompleted={handleMaskCompleted}
-            collectibleCatalog={collectibleProducts}
+            collectibleCatalog={currentVideo.type === 'interactive' ? quickClickTags : []}
             onCollectibleCollected={handleCollectibleCollected}
             dropTargetRef={characterRef}
             onCharacterClick={openCharacterPanel}
             pointsBalance={totalPoints}
             skipCost={skipAdCost}
-            onRedeemSkip={handleRedeemSkip}
+            onRedeemSkip={handleRedeemClimaxSkip}
             isAdActive={false}
             onPhaseChange={setVideoPhase}
+            onTimeUpdate={handleVideoTimeUpdate}
+            showMask={false}
             className="h-[58vh] w-full rounded-none lg:h-[calc(100vh-140px)]"
           />
+          
+          {showClimaxModal && currentVideo.type === 'climax' && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="rounded-xl border border-white/15 bg-slate-950/85 p-5 text-center text-white shadow-2xl">
+                <div className="mb-3 text-sm font-bold">高潮广告阶段</div>
+                <button
+                  onClick={handleRedeemClimaxSkip}
+                  disabled={totalPoints < skipAdCost}
+                  className={`gap-2 rounded-full px-4 py-2 font-semibold transition ${
+                    totalPoints >= skipAdCost
+                      ? 'bg-primary text-white hover:bg-primary/90'
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  消耗 {skipAdCost} 积分跳过
+                </button>
+                <div className="mt-2 text-xs text-white/60">当前余额：{totalPoints} 积分</div>
+              </div>
+            </div>
+          )}
         </section>
         <aside className="min-h-[42vh] rounded-2xl border border-white/10 bg-[#1a1c22] p-4 lg:min-h-[calc(100vh-140px)] lg:p-6">
           {rightPanel}

@@ -8,6 +8,8 @@ export const brandColors: Record<Brand, { primary: string; secondary: string }> 
   chanel: { primary: '#E7E5E4', secondary: '#111111' },
   mcdonalds: { primary: '#FFC72C', secondary: '#DA291C' },
   cocacola: { primary: '#F40009', secondary: '#FFFFFF' },
+  vancleefarpels: { primary: '#9F7A4F', secondary: '#F8F1E7' },
+  fangchao: { primary: '#F472B6', secondary: '#111827' },
 }
 
 // 品牌名称映射
@@ -18,6 +20,8 @@ export const brandNames: Record<Brand, string> = {
   chanel: 'Chanel',
   mcdonalds: '麦当劳',
   cocacola: '可口可乐',
+  vancleefarpels: 'Van Cleef&Arpels',
+  fangchao: '方超',
 }
 
 // 模拟商品数据
