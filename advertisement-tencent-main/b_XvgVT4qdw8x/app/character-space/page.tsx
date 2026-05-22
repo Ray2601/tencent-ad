@@ -108,8 +108,9 @@ export default function CharacterSpacePage() {
 
   // ── Drag & drop handlers ─────────────────────────────────────────
 
-  const handleDragStart = (e: React.DragEvent, product: Product) => {
+  const handleDragStart = (e: React.DragEvent, product: Product, source: string = 'backpack') => {
     e.dataTransfer.setData('application/product-id', product.id)
+    e.dataTransfer.setData('application/source', source)
     e.dataTransfer.effectAllowed = 'move'
     recordActivity()
     logAction({ type: 'drag_start', productId: product.id })
@@ -125,17 +126,39 @@ export default function CharacterSpacePage() {
     setDragoverChar(false)
   }
 
+  const getAdCardEmotion = useCallback((product: Product): { emo: CharacterEmotion; text: string } => {
+    switch (product.rarity) {
+      case 'legendary':
+        return { emo: 'happy', text: '好喜欢！' }
+      case 'epic':
+        return { emo: 'happy', text: '还不错！' }
+      case 'rare':
+        return { emo: 'surprised', text: '这是什么？' }
+      default:
+        return { emo: 'bored', text: '一般般...' }
+    }
+  }, [])
+
   const handleDropOnChar = (e: React.DragEvent) => {
     e.preventDefault()
     setDragoverChar(false)
     const productId = e.dataTransfer.getData('application/product-id')
+    const source = e.dataTransfer.getData('application/source')
     if (!productId) return
 
     const product = productCatalog.find(p => p.id === productId)
     if (!product) return
 
-    setEquippedProductId(product.id)
-    showTemporaryEmotion('happy', '好看吗？')
+    if (source === 'ad-card') {
+      // Ad card dropped: show rarity-based emotion and collect
+      const { emo, text } = getAdCardEmotion(product)
+      showTemporaryEmotion(emo, text)
+      addItem(product)
+    } else {
+      // Backpack card dropped: equip outfit
+      setEquippedProductId(product.id)
+      showTemporaryEmotion('happy', '好看吗？')
+    }
     recordActivity()
     logAction({ type: 'equip_outfit', productId: product.id })
   }
@@ -181,13 +204,13 @@ export default function CharacterSpacePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[960px] space-y-8 px-6 py-8">
+      <div className="mx-auto max-w-[960px] space-y-4 px-6 py-4">
         {/* ── Top: Character display ─────────────────────────────── */}
         <section className="flex flex-col items-center">
           {/* Drop target */}
           <div
             className={cn(
-              'relative rounded-3xl border-2 border-dashed p-6 transition-all',
+              'relative rounded-2xl border-2 border-dashed px-12 py-3 transition-all',
               dragoverChar
                 ? 'border-emerald-400 bg-emerald-400/10 scale-105'
                 : 'border-white/15 bg-white/[0.03]',
@@ -197,32 +220,34 @@ export default function CharacterSpacePage() {
             onDrop={handleDropOnChar}
           >
             {equippedOutfit && equippedOutfit.renderMode === 'full-sprite' ? (
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-2">
                 <FangchaoOutfitSprite
                   outfitId={equippedOutfit.productId}
-                  className="h-40 w-40"
+                  className="h-32 w-32"
                 />
-                <span className="text-sm font-bold text-emerald-300">
+                <span className="text-xs font-bold text-emerald-300">
                   已穿搭：{equippedOutfit.name}
                 </span>
                 <button
                   onClick={handleUnequip}
-                  className="rounded-full bg-white/10 px-4 py-1.5 text-xs text-white/70 hover:bg-white/20 transition"
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/20 transition"
                 >
                   卸下穿搭
                 </button>
               </div>
             ) : (
               <>
-                <Character emotion={emotion} className="pointer-events-none" />
+                <div className="scale-[0.65] origin-center">
+                  <Character emotion={emotion} className="pointer-events-none" />
+                </div>
                 {equippedProduct && (
-                  <div className="mt-2 flex items-center gap-2 rounded-full bg-emerald-400/15 px-4 py-1.5">
-                    <span className="text-sm font-bold text-emerald-300">
+                  <div className="mt-1 flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1">
+                    <span className="text-xs font-bold text-emerald-300">
                       已穿搭：{equippedProduct.name}
                     </span>
                     <button
                       onClick={handleUnequip}
-                      className="rounded-full bg-white/10 px-3 py-0.5 text-xs text-white/70 hover:bg-white/20 transition"
+                      className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/20 transition"
                     >
                       卸下
                     </button>
@@ -264,29 +289,30 @@ export default function CharacterSpacePage() {
             )}
           </div>
 
-          <p className="mt-3 text-sm text-white/40">
-            {dragoverChar ? '松手即可换装！' : '把下方卡牌拖到小人身上即可换装'}
+          <p className="mt-1 text-xs text-white/40">
+            {dragoverChar ? '松手即可！' : '把背包卡牌或广告卡片拖到小人身上'}
           </p>
         </section>
 
         {/* ── Middle: Backpack ────────────────────────────────────── */}
-        <section className="rounded-2xl border border-white/10 bg-[#1a1c22] p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">我的背包</h2>
-            <span className="text-sm text-white/45">
+        <section className="rounded-2xl border border-white/10 bg-[#1a1c22] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold">我的穿搭背包</h2>
+            <span className="text-xs text-white/45">
               {backpackItems.length} / {backpack.maxCapacity}
             </span>
           </div>
 
           {backpackItems.length === 0 ? (
-            <div className="grid h-32 place-items-center rounded-xl border border-dashed border-white/10 text-white/35">
+            <div className="grid h-24 place-items-center rounded-xl border border-dashed border-white/10 text-white/35">
               <div className="text-center">
-                <p className="text-lg">背包空空如也</p>
-                <p className="mt-1 text-sm">点击下方推荐广告的【收集】按钮获取商品</p>
+                <p className="text-base">背包空空如也</p>
+                <p className="mt-1 text-xs">点击下方推荐广告的【收集】按钮获取商品</p>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-5 md:grid-cols-6">
+            <div className="overflow-x-auto pb-2 -mx-1 px-1">
+              <div className="flex gap-3 w-max">
               {backpackItems.map(item => {
                 const isClothing = item.product.category === 'clothing'
                 const isEquipped = item.product.id === equippedProductId
@@ -299,7 +325,7 @@ export default function CharacterSpacePage() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className={cn(
-                      'relative flex cursor-grab flex-col items-center gap-2 rounded-xl border p-3 transition-all active:cursor-grabbing',
+                      'relative flex cursor-grab flex-col items-center gap-1.5 rounded-xl border p-2.5 transition-all active:cursor-grabbing shrink-0 w-[100px]',
                       isEquipped
                         ? 'border-emerald-400 bg-emerald-400/10'
                         : isClothing
@@ -308,53 +334,57 @@ export default function CharacterSpacePage() {
                     )}
                   >
                     {isClothing && (
-                      <span className="absolute right-1.5 top-1.5 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                      <span className="absolute right-1 top-1 rounded bg-primary/20 px-1 py-0.5 text-[9px] font-bold text-primary">
                         可穿搭
                       </span>
                     )}
                     {isEquipped && (
-                      <span className="absolute right-1.5 top-1.5 rounded bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold text-emerald-950">
+                      <span className="absolute right-1 top-1 rounded bg-emerald-400 px-1 py-0.5 text-[9px] font-bold text-emerald-950">
                         已穿搭
                       </span>
                     )}
-                    <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10">
-                      <span className="text-2xl">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/10">
+                      <span className="text-xl">
                         {item.product.category === 'clothing' ? '👗' :
                          item.product.category === 'luxury' ? '💎' :
                          item.product.category === 'beverage' ? '🥤' :
                          item.product.category === 'food' ? '🍔' : '📦'}
                       </span>
                     </div>
-                    <span className="truncate text-center text-xs font-medium text-white/80 w-full">
+                    <span className="truncate text-center text-[11px] font-medium text-white/80 w-full">
                       {item.product.name}
                     </span>
                     <span className="text-[10px] text-white/35">x{item.quantity}</span>
                   </motion.div>
                 )
               })}
+              </div>
             </div>
           )}
         </section>
 
         {/* ── Bottom: Recommended Ads ─────────────────────────────── */}
-        <section className="rounded-2xl border border-white/10 bg-[#1a1c22] p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">推荐广告</h2>
+        <section className="rounded-2xl border border-white/10 bg-[#1a1c22] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold">推荐广告</h2>
             <span className="text-xs text-white/35">
               每 {AD_REFRESH_SECONDS}s 自动刷新
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             {recommendedAds.map(product => (
               <motion.div
                 key={product.id}
                 layout
+                draggable
+                onDragStart={e => handleDragStart(e, product, 'ad-card')}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                whileHover={{ scale: 1.03, borderColor: 'rgba(255,255,255,0.25)' }}
+                className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 cursor-grab active:cursor-grabbing transition-colors hover:bg-white/[0.06]"
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white/10 text-3xl">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/10 text-2xl">
                   {product.category === 'beverage' ? '🥤' :
                    product.category === 'luxury' ? '💄' :
                    product.category === 'food' ? '🍔' :
@@ -362,16 +392,16 @@ export default function CharacterSpacePage() {
                    product.category === 'electronics' ? '📱' : '🎁'}
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold">{product.name}</div>
-                  <div className="mt-0.5 text-xs text-white/45">
+                  <div className="text-xs font-bold">{product.name}</div>
+                  <div className="mt-0.5 text-[10px] text-white/45">
                     {product.points} 积分
                   </div>
                 </div>
                 <button
-                  onClick={() => handleCollect(product)}
+                  onClick={(e) => { e.stopPropagation(); handleCollect(product); }}
                   disabled={collectedId === product.id}
                   className={cn(
-                    'w-full rounded-full py-2 text-sm font-bold transition-all active:scale-95',
+                    'w-full rounded-full py-1.5 text-xs font-bold transition-all active:scale-95',
                     collectedId === product.id
                       ? 'bg-emerald-500 text-white'
                       : 'bg-primary hover:bg-primary/90 text-white',

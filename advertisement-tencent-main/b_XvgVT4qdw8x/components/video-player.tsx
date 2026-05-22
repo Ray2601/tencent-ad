@@ -735,7 +735,7 @@ export function VideoPlayer({
         <div className="relative mb-3 pt-12">
           {!isAdActive && !isMaskCompleted && (
             <ProgressBarCharacter
-              progress={duration > 0 ? (currentTime / duration) * 100 : 0}
+              progress={overallProgress ?? (duration > 0 ? (currentTime / duration) * 100 : 0)}
               isPlaying={isPlaying}
               onThrow={handleCharacterThrow}
               onClick={onCharacterClick}
