@@ -18,27 +18,6 @@ export interface FangchaoOutfitDef {
 
 export const fangchaoOutfits: FangchaoOutfitDef[] = [
   {
-    productId: 'fangchao-rich-look-1',
-    name: '方超靓丽富姐装1',
-    spritesheet: fangchaoOutfitImage,
-    spritePosition: '0% 50%',
-    renderMode: 'body-texture',
-  },
-  {
-    productId: 'fangchao-fit-look-2',
-    name: '方超帅气薄肌套装2',
-    spritesheet: fangchaoOutfitImage,
-    spritePosition: '50% 50%',
-    renderMode: 'body-texture',
-  },
-  {
-    productId: 'fangchao-maid-look',
-    name: '方超女仆装',
-    spritesheet: fangchaoOutfitImage,
-    spritePosition: '100% 50%',
-    renderMode: 'body-texture',
-  },
-  {
     productId: 'fangchao-homie',
     name: 'Homie',
     spritesheet: fangchaoNvpuSpritesheet,
@@ -71,6 +50,8 @@ export const brandLabels: Record<Brand, string> = {
   vancleefarpels: 'Van Cleef&Arpels',
   fangchao: '方超',
   candymoyo: 'CandyMoyo',
+  pepsi: '百事可乐',
+  chowtaifook: '周大福',
 }
 
 export const productCatalog: Product[] = [
@@ -307,9 +288,83 @@ export const productCatalog: Product[] = [
     rarity: 'rare',
     points: 50,
   },
+  {
+    id: 'pepsi-cola',
+    name: '百事可乐',
+    brand: 'pepsi',
+    category: 'beverage',
+    image: '/products/perfume.png',
+    description: '经典的百事可乐，一口畅爽。',
+    rarity: 'common',
+    points: 40,
+  },
+  {
+    id: 'pepsi-zero',
+    name: '百事无糖可乐',
+    brand: 'pepsi',
+    category: 'beverage',
+    image: '/products/perfume.png',
+    description: '零糖零卡，健康畅饮。',
+    rarity: 'common',
+    points: 50,
+  },
+  {
+    id: 'dior-lipstick',
+    name: '迪奥口红',
+    brand: 'dior',
+    category: 'luxury',
+    image: '/products/perfume.png',
+    description: '迪奥烈焰蓝金唇膏，经典999色号。',
+    rarity: 'epic',
+    points: 180,
+  },
+  {
+    id: 'chowtaifook-gold',
+    name: '周大福金链',
+    brand: 'chowtaifook',
+    category: 'luxury',
+    image: '/products/perfume.png',
+    description: '周大福传承系列足金项链。',
+    rarity: 'legendary',
+    points: 300,
+  },
+  {
+    id: 'chowtaifook-ring',
+    name: '周大福金戒',
+    brand: 'chowtaifook',
+    category: 'luxury',
+    image: '/products/perfume.png',
+    description: '周大福婚嫁系列黄金戒指。',
+    rarity: 'epic',
+    points: 220,
+  },
+  {
+    id: 'mcdonalds-burger',
+    name: '巨无霸汉堡',
+    brand: 'mcdonalds',
+    category: 'food',
+    image: '/products/perfume.png',
+    description: '麦当劳经典巨无霸，双层牛肉。',
+    rarity: 'common',
+    points: 35,
+  },
 ]
 
 export const skipAdCost = 450
+
+/** Pool of product IDs for the recommended ad area */
+export const recommendedAdProductIds = [
+  'pepsi-cola',
+  'pepsi-zero',
+  'dior-lipstick',
+  'chowtaifook-gold',
+  'chowtaifook-ring',
+  'mcdonalds-burger',
+  'coke-pin',
+  'nike-tech-bag',
+  'apple-sticker',
+  'dior-perfume-card',
+]
 
 export function getUnlockedBrands(ownedProductIds: Set<string>) {
   const ownedBrands = new Set<Brand>()

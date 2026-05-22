@@ -17,7 +17,7 @@ export interface Product {
   silhouette?: string
 }
 
-export type Brand = 'nike' | 'apple' | 'dior' | 'chanel' | 'mcdonalds' | 'cocacola' | 'vancleefarpels' | 'fangchao' | 'candymoyo'
+export type Brand = 'nike' | 'apple' | 'dior' | 'chanel' | 'mcdonalds' | 'cocacola' | 'vancleefarpels' | 'fangchao' | 'candymoyo' | 'pepsi' | 'chowtaifook'
 
 export type ProductCategory = 'clothing' | 'electronics' | 'luxury' | 'food' | 'beverage'
 

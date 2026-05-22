@@ -352,7 +352,6 @@ export default function InteractiveAdPage() {
   // Quick-click products for character space
   const quickClickProductIds = new Set([
     'vca-bracelet', 'vca-ring', 'vca-necklace', 'vca-earrings',
-    'fangchao-rich-look-1', 'fangchao-fit-look-2', 'fangchao-maid-look',
     'fangchao-homie', 'fangchao-wukong', 'fangchao-taffy',
   ])
   const collectibleProducts = productCatalog.filter(p => quickClickProductIds.has(p.id))
