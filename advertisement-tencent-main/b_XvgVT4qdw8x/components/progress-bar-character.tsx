@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { fangchaoOutfits, type FangchaoOutfitDef } from '@/lib/collection-data'
 import { cn } from '@/lib/utils'
 
 interface ProgressBarCharacterProps {
@@ -10,10 +11,22 @@ interface ProgressBarCharacterProps {
   onThrow?: (velocity: { x: number; y: number }) => void
   onClick?: () => void
   outfitIndex?: number
+  equippedOutfitId?: string | null
   className?: string
 }
 
 type DragMood = 'normal' | 'surprised' | 'thrown'
+
+const codexPetOutfits = fangchaoOutfits.filter(o => o.renderMode === 'full-sprite')
+const FRAME_COUNT = 8
+const ROW_COUNT = 9
+
+function pickRow(mood: DragMood, isPlaying: boolean): number {
+  if (mood === 'surprised') return 2
+  if (mood === 'thrown') return 4
+  if (isPlaying) return 1 // walking forward row
+  return 0 // idle row
+}
 
 export function ProgressBarCharacter({
   progress,
@@ -21,12 +34,31 @@ export function ProgressBarCharacter({
   onThrow,
   onClick,
   outfitIndex = 0,
+  equippedOutfitId,
   className,
 }: ProgressBarCharacterProps) {
   const [mood, setMood] = useState<DragMood>('normal')
   const [showReturnHint, setShowReturnHint] = useState(false)
   const [throwTarget, setThrowTarget] = useState({ x: 0, y: 0, rotate: 0 })
-  const tease = ['点我呀', '新穿搭', '看这里'][outfitIndex % 3]
+
+  const equippedOutfit = useMemo(
+    () => (equippedOutfitId ? fangchaoOutfits.find(o => o.productId === equippedOutfitId) ?? null : null),
+    [equippedOutfitId],
+  )
+
+  const randomOutfit = useMemo(() => {
+    if (codexPetOutfits.length === 0) return null
+    const permutedIndex = (outfitIndex * 7 + 3) % codexPetOutfits.length
+    return codexPetOutfits[permutedIndex]
+  }, [outfitIndex])
+
+  const displayOutfit: FangchaoOutfitDef | null = equippedOutfit ?? randomOutfit
+
+  const tease = equippedOutfit
+    ? '已穿搭'
+    : displayOutfit
+      ? displayOutfit.name
+      : ['点我呀', '新穿搭', '看这里'][outfitIndex % 3]
 
   useEffect(() => {
     if (mood !== 'thrown') return
@@ -40,9 +72,10 @@ export function ProgressBarCharacter({
 
   return (
     <div
-      className={cn('pointer-events-none absolute bottom-0 h-20', className)}
+      className={cn('pointer-events-none absolute flex flex-col items-center', className)}
       style={{
         left: `${progress}%`,
+        bottom: '1.15rem',
         transform: 'translateX(-50%)',
         zIndex: 50,
       }}
@@ -55,9 +88,9 @@ export function ProgressBarCharacter({
         animate={
           mood === 'thrown'
             ? { x: throwTarget.x, y: throwTarget.y, rotate: throwTarget.rotate, opacity: 0 }
-            : { x: 0, y: 0, rotate: isPlaying ? [0, -3, 3, -3, 0] : 0, opacity: 1 }
+            : { x: 0, y: 0, opacity: 1 }
         }
-        transition={mood === 'thrown' ? { duration: 0.55, ease: 'easeOut' } : { duration: 2, repeat: isPlaying ? Infinity : 0, ease: 'easeInOut' }}
+        transition={mood === 'thrown' ? { duration: 0.55, ease: 'easeOut' } : { duration: 0.2 }}
         onDrag={(_, info) => {
           const isAwayFromBar = Math.abs(info.offset.y) > 18 || Math.abs(info.offset.x) > 42
           if (mood !== 'thrown') setMood(isAwayFromBar ? 'surprised' : 'normal')
@@ -91,7 +124,12 @@ export function ProgressBarCharacter({
             {mood === 'surprised' ? '哎呀！' : tease}
           </div>
         )}
-        <LyingCharacterSvg isPlaying={isPlaying} outfitIndex={outfitIndex} mood={mood} />
+
+        <AnimatedSpriteCharacter
+          outfit={displayOutfit}
+          mood={mood}
+          isPlaying={isPlaying}
+        />
       </motion.div>
 
       {showReturnHint && (
@@ -99,7 +137,8 @@ export function ProgressBarCharacter({
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-950/85 px-3 py-1 text-xs font-bold text-white shadow-lg"
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-950/85 px-3 py-1 text-xs font-bold text-white shadow-lg"
+          style={{ top: '6rem' }}
         >
           很快回来喔
         </motion.div>
@@ -108,73 +147,104 @@ export function ProgressBarCharacter({
   )
 }
 
-function LyingCharacterSvg({
-  isPlaying,
-  outfitIndex,
+function AnimatedSpriteCharacter({
+  outfit,
   mood,
+  isPlaying,
 }: {
-  isPlaying: boolean
-  outfitIndex: number
+  outfit: FangchaoOutfitDef | null
   mood: DragMood
+  isPlaying: boolean
 }) {
-  const outfitColors = ['#A78BFA', '#60A5FA', '#4ADE80']
-  const accent = mood === 'surprised' ? '#FBBF24' : mood === 'thrown' ? '#F472B6' : outfitColors[outfitIndex % outfitColors.length]
-  const isSurprised = mood === 'surprised'
-  const isThrown = mood === 'thrown'
+  const [frame, setFrame] = useState(0)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const row = pickRow(mood, isPlaying)
+
+  const frameInterval = mood === 'surprised' ? 150 : 200
+
+  useEffect(() => {
+    const shouldAnimate = isPlaying || mood === 'surprised'
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+
+    if (!shouldAnimate) {
+      setFrame(0)
+      return
+    }
+
+    intervalRef.current = setInterval(() => {
+      setFrame(f => (f + 1) % FRAME_COUNT)
+    }, frameInterval)
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [isPlaying, mood, frameInterval])
+
+  const spritesheet = outfit?.spritesheet ?? codexPetOutfits[0]?.spritesheet ?? ''
+  const bgX = `${((frame / (FRAME_COUNT - 1)) * 100).toFixed(2)}%`
+  const bgY = `${((row / (ROW_COUNT - 1)) * 100).toFixed(2)}%`
 
   return (
-    <svg width="80" height="50" viewBox="0 0 80 50" fill="none" className="drop-shadow-lg">
-      <motion.ellipse
-        cx="38"
-        cy="35"
-        rx="30"
-        ry="12"
-        fill={accent}
-        animate={{ ry: isPlaying && mood === 'normal' ? [12, 10, 12] : 12 }}
-        transition={{ duration: 0.5, repeat: isPlaying && mood === 'normal' ? Infinity : 0 }}
+    <motion.div
+      className="flex flex-col items-center"
+      animate={isPlaying && mood === 'normal' ? { y: [0, -3, -1, -3, 0], x: [0, 1, 2, 1, 0] } : {}}
+      transition={{ duration: 0.55, repeat: isPlaying && mood === 'normal' ? Infinity : 0 }}
+    >
+      <div
+        className="w-16 bg-no-repeat drop-shadow-[0_8px_10px_rgba(0,0,0,0.45)]"
+        style={{
+          backgroundImage: `url('${spritesheet}')`,
+          backgroundSize: '800% auto',
+          backgroundPosition: `${bgX} ${bgY}`,
+          aspectRatio: '192/208',
+        }}
       />
-      <motion.circle
-        cx="64"
-        cy="20"
-        r="18"
-        fill={accent}
-        animate={{ cy: isPlaying && mood === 'normal' ? [20, 18, 20] : 20 }}
-        transition={{ duration: 0.5, repeat: isPlaying && mood === 'normal' ? Infinity : 0 }}
-      />
+    </motion.div>
+  )
+}
 
-      {isThrown ? (
-        <>
-          <path d="M56 14 L64 22 M64 14 L56 22" stroke="#171717" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M68 14 L76 22 M76 14 L68 22" stroke="#171717" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M59 31 Q65 26 71 31" stroke="#171717" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </>
-      ) : isSurprised ? (
-        <>
-          <circle cx="60" cy="18" r="5" fill="#fff" stroke="#171717" strokeWidth="1.5" />
-          <circle cx="72" cy="18" r="5" fill="#fff" stroke="#171717" strokeWidth="1.5" />
-          <circle cx="60" cy="18" r="2" fill="#171717" />
-          <circle cx="72" cy="18" r="2" fill="#171717" />
-          <ellipse cx="66" cy="29" rx="4" ry="5" fill="#171717" />
-        </>
-      ) : (
-        <>
-          <path d="M54 18 Q58 14 62 18" stroke="#171717" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M68 18 Q72 14 76 18" stroke="#171717" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M59 27 Q65 31 71 27" stroke="#171717" strokeWidth="2" strokeLinecap="round" />
-        </>
-      )}
+export function FangchaoOutfitSprite({
+  outfitId,
+  className,
+}: {
+  outfitId: string
+  className?: string
+}) {
+  const outfit = fangchaoOutfits.find(item => item.productId === outfitId) ?? fangchaoOutfits[0]
 
-      <ellipse cx="15" cy="42" rx="6" ry="8" fill={accent} />
-      <motion.ellipse
-        cx="12"
-        cy="28"
-        rx="5"
-        ry="7"
-        fill={accent}
-        animate={{ rotate: isPlaying && mood === 'normal' ? [0, 15, -15, 0] : 0 }}
-        transition={{ duration: 1, repeat: isPlaying && mood === 'normal' ? Infinity : 0 }}
-        style={{ transformOrigin: '12px 35px' }}
+  if (!outfit) return null
+
+  if (outfit.renderMode === 'full-sprite') {
+    return (
+      <div
+        aria-label={outfit.name}
+        className={cn('overflow-hidden rounded-md bg-white/5 bg-no-repeat', className)}
+        style={{
+          backgroundImage: `url('${outfit.spritesheet}')`,
+          backgroundSize: '800% auto',
+          backgroundPosition: '0% 0%',
+        }}
       />
-    </svg>
+    )
+  }
+
+  return (
+    <div
+      aria-label={outfit.name}
+      className={cn('overflow-hidden rounded-md bg-white/5 bg-no-repeat', className)}
+      style={{
+        backgroundImage: `url('${outfit.spritesheet}')`,
+        backgroundPosition: outfit.spritePosition,
+        backgroundSize: '300% auto',
+      }}
+    />
   )
 }

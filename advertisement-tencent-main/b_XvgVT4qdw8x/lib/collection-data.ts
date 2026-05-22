@@ -1,5 +1,66 @@
 import type { Brand, Product } from '@/lib/types'
 
+export const fangchaoWearCost = 100
+export const fangchaoOutfitImage = '/fangchao%20(2).png'
+export const fangchaoNvpuSpritesheet = '/homie/spritesheet.png'
+export const fangchaoFujieSpritesheet = '/wukong/spritesheet.webp'
+export const fangchaoShuaiSpritesheet = '/taffy/spritesheet.webp'
+
+export type FangchaoOutfitRenderMode = 'body-texture' | 'full-sprite'
+
+export interface FangchaoOutfitDef {
+  productId: string
+  name: string
+  spritesheet: string
+  spritePosition: string
+  renderMode: FangchaoOutfitRenderMode
+}
+
+export const fangchaoOutfits: FangchaoOutfitDef[] = [
+  {
+    productId: 'fangchao-rich-look-1',
+    name: '方超靓丽富姐装1',
+    spritesheet: fangchaoOutfitImage,
+    spritePosition: '0% 50%',
+    renderMode: 'body-texture',
+  },
+  {
+    productId: 'fangchao-fit-look-2',
+    name: '方超帅气薄肌套装2',
+    spritesheet: fangchaoOutfitImage,
+    spritePosition: '50% 50%',
+    renderMode: 'body-texture',
+  },
+  {
+    productId: 'fangchao-maid-look',
+    name: '方超女仆装',
+    spritesheet: fangchaoOutfitImage,
+    spritePosition: '100% 50%',
+    renderMode: 'body-texture',
+  },
+  {
+    productId: 'fangchao-homie',
+    name: 'Homie',
+    spritesheet: fangchaoNvpuSpritesheet,
+    spritePosition: '0% 0%',
+    renderMode: 'full-sprite',
+  },
+  {
+    productId: 'fangchao-wukong',
+    name: 'Wukong',
+    spritesheet: fangchaoFujieSpritesheet,
+    spritePosition: '0% 0%',
+    renderMode: 'full-sprite',
+  },
+  {
+    productId: 'fangchao-taffy',
+    name: 'Taffy',
+    spritesheet: fangchaoShuaiSpritesheet,
+    spritePosition: '0% 0%',
+    renderMode: 'full-sprite',
+  },
+]
+
 export const brandLabels: Record<Brand, string> = {
   nike: 'Nike',
   apple: 'Apple',
@@ -9,6 +70,7 @@ export const brandLabels: Record<Brand, string> = {
   cocacola: 'Coca-Cola',
   vancleefarpels: 'Van Cleef&Arpels',
   fangchao: '方超',
+  candymoyo: 'CandyMoyo',
 }
 
 export const productCatalog: Product[] = [
@@ -61,7 +123,7 @@ export const productCatalog: Product[] = [
     name: '方超靓丽富姐装1',
     brand: 'fangchao',
     category: 'clothing',
-    image: '/products/perfume.png',
+    image: fangchaoOutfitImage,
     description: '快速点击小游戏里可以收进背包的方超套装。',
     rarity: 'legendary',
     points: 260,
@@ -71,7 +133,7 @@ export const productCatalog: Product[] = [
     name: '方超帅气薄肌套装2',
     brand: 'fangchao',
     category: 'clothing',
-    image: '/products/perfume.png',
+    image: fangchaoOutfitImage,
     description: '快速点击小游戏里可以收进背包的方超套装。',
     rarity: 'epic',
     points: 230,
@@ -81,10 +143,40 @@ export const productCatalog: Product[] = [
     name: '方超女仆装',
     brand: 'fangchao',
     category: 'clothing',
-    image: '/products/perfume.png',
+    image: fangchaoOutfitImage,
     description: '快速点击小游戏里可以收进背包的方超套装。',
     rarity: 'epic',
     points: 210,
+  },
+  {
+    id: 'fangchao-homie',
+    name: 'Homie',
+    brand: 'fangchao',
+    category: 'clothing',
+    image: fangchaoNvpuSpritesheet,
+    description: 'Homie宠物造型，可以在小人空间里穿搭。',
+    rarity: 'legendary',
+    points: 280,
+  },
+  {
+    id: 'fangchao-wukong',
+    name: 'Wukong',
+    brand: 'fangchao',
+    category: 'clothing',
+    image: fangchaoFujieSpritesheet,
+    description: 'Wukong宠物造型，可以在小人空间里穿搭。',
+    rarity: 'legendary',
+    points: 280,
+  },
+  {
+    id: 'fangchao-taffy',
+    name: 'Taffy',
+    brand: 'fangchao',
+    category: 'clothing',
+    image: fangchaoShuaiSpritesheet,
+    description: 'Taffy宠物造型，可以在小人空间里穿搭。',
+    rarity: 'legendary',
+    points: 280,
   },
   {
     id: 'chanel-perfume-bottle',
@@ -204,6 +296,16 @@ export const productCatalog: Product[] = [
     rarity: 'common',
     points: 60,
     purchaseUrl: 'https://www.coca-cola.com/',
+  },
+  {
+    id: 'candymoyo-nail-red',
+    name: 'CandyMoyo 红色指甲油',
+    brand: 'candymoyo',
+    category: 'luxury',
+    image: '/fig.png',
+    description: '猜对周媚的指甲油颜色后获得。',
+    rarity: 'rare',
+    points: 50,
   },
 ]
 

@@ -17,7 +17,7 @@ export interface Product {
   silhouette?: string
 }
 
-export type Brand = 'nike' | 'apple' | 'dior' | 'chanel' | 'mcdonalds' | 'cocacola' | 'vancleefarpels' | 'fangchao'
+export type Brand = 'nike' | 'apple' | 'dior' | 'chanel' | 'mcdonalds' | 'cocacola' | 'vancleefarpels' | 'fangchao' | 'candymoyo'
 
 export type ProductCategory = 'clothing' | 'electronics' | 'luxury' | 'food' | 'beverage'
 
@@ -55,6 +55,7 @@ export interface UserAction {
     | 'exchange_redeem'
     | 'redeem_skip'
     | 'open_character'
+    | 'equip_outfit'
   productId?: string
   timestamp: number
   details?: Record<string, unknown>

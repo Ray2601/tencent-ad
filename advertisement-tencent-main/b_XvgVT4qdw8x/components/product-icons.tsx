@@ -290,6 +290,12 @@ export function BrandLogo({ brand, size = 32 }: { brand: Brand; size?: number })
         <text x="16" y="20" textAnchor="middle" fill="#111827" fontSize="12" fontWeight="bold">方</text>
       </svg>
     ),
+    candymoyo: (
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="8" fill="#FF6B8A" />
+        <text x="16" y="20" textAnchor="middle" fill="#FFFFFF" fontSize="7" fontWeight="bold">CM</text>
+      </svg>
+    ),
   }
 
   return <div className="flex items-center justify-center">{logos[brand]}</div>

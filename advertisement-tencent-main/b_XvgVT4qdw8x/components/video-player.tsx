@@ -42,6 +42,8 @@ type ClickTagProduct = Product & {
   collectible?: boolean
 }
 
+type PlayerMode = 'label' | 'shooting' | 'normal'
+
 interface VideoPlayerProps {
   src?: string
   maskData?: MaskData
@@ -64,10 +66,17 @@ interface VideoPlayerProps {
   onPlay?: () => void
   onTimeUpdate?: (currentTime: number, duration: number) => void
   onPhaseChange?: (phase: 'main' | 'mask' | 'collected') => void
+  onVideoEnded?: () => void
   showMask?: boolean
+  equippedOutfitId?: string | null
+  loop?: boolean
+  overallProgress?: number
+  mode?: PlayerMode
+  targetHits?: number
+  autoPlay?: boolean
 }
 
-const REQUIRED_HITS = 5
+// targetHits passed as prop, default 5
 
 export function VideoPlayer({
   src,
@@ -91,7 +100,14 @@ export function VideoPlayer({
   onPlay,
   onTimeUpdate,
   onPhaseChange,
+  onVideoEnded,
   showMask = false,
+  equippedOutfitId,
+  loop = false,
+  overallProgress,
+  mode = 'normal',
+  targetHits = 5,
+  autoPlay = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -116,10 +132,20 @@ export function VideoPlayer({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [collectedToast, setCollectedToast] = useState<null | { id: number; product: Product; collected: boolean }>(null)
 
-  const isMaskPhase = phase === 'mask'
+  const isMaskPhase = phase === 'mask' && mode !== 'label'
   const isMaskCompleted = phase === 'collected'
-  const isQuickClickActive = Boolean(maskData && collectibleCatalog.length > 0 && !isMaskCompleted)
+  const isLabelMode = mode === 'label'
+  const isShootingMode = mode === 'shooting'
+  const isQuickClickActive = Boolean(
+    (isLabelMode || (maskData && mode !== 'shooting')) && collectibleCatalog.length > 0 && !isMaskCompleted
+  )
   const activeSrc = src
+
+  useEffect(() => {
+    if (maskData && isPlaying && !isMaskCompleted && phase !== 'mask' && mode !== 'label') {
+      setPhase('mask')
+    }
+  }, [maskData, isPlaying, isMaskCompleted, phase, mode])
 
   useEffect(() => {
     onPhaseChange?.(phase)
@@ -147,13 +173,14 @@ export function VideoPlayer({
   }, [maskData])
 
   const activeMaskFrame = useMemo(() => {
-    if (!maskData || !isQuickClickActive) return null
+    if (!maskData) return null
+    if (!isQuickClickActive && !isShootingMode) return null
     const frameId = Math.max(0, Math.min(maskData.video_info.frames - 1, Math.round(currentTime * maskData.video_info.fps)))
     return frameById.get(frameId) ?? null
-  }, [currentTime, frameById, isQuickClickActive, maskData])
+  }, [currentTime, frameById, isQuickClickActive, isShootingMode, maskData])
 
   const frameCollectible = useMemo(() => {
-    if (collectibleCatalog.length === 0 || !isQuickClickActive || !isPlaying || isMaskCompleted || isAdActive) return null
+    if (collectibleCatalog.length === 0 || !isQuickClickActive || !isPlaying || isMaskCompleted || isAdActive || isShootingMode) return null
     const frameId = Math.max(0, Math.floor(currentTime * 30))
     const stableSlot = Math.floor(frameId / 15)
     const product = collectibleCatalog[stableSlot % collectibleCatalog.length]
@@ -181,7 +208,10 @@ export function VideoPlayer({
     }
   }, [activeMaskFrame, collectibleCatalog, currentTime, isAdActive, isMaskCompleted, isPlaying, isQuickClickActive, maskData])
 
-  const outfitIndex = useMemo(() => Math.floor(currentTime / 4) % 3, [currentTime])
+  const outfitIndex = useMemo(() => {
+    const slot = Math.floor(currentTime / 4)
+    return (slot * 7 + 2) % 6
+  }, [currentTime])
   const isClimaxWindow = duration > 0 && duration - currentTime <= 3 && currentTime > duration * 0.55
 
   const handleCharacterThrow = useCallback((velocity: { x: number; y: number }) => {
@@ -225,7 +255,7 @@ export function VideoPlayer({
   const skipAd = useCallback(() => {
     onAdEnded()
     setCurrentAdEndTime(null)
-    if (videoRef.current && videoRef.current instanceof HTMLVideoElement) {
+    if (videoRef.current) {
       void videoRef.current.play()
       setIsPlaying(true)
     }
@@ -255,7 +285,7 @@ export function VideoPlayer({
 
   const redeemClimaxSkip = useCallback(() => {
     if (!onRedeemSkip?.()) return
-    if (videoRef.current && videoRef.current instanceof HTMLVideoElement) {
+    if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, duration - 0.15)
       void videoRef.current.play()
       setIsPlaying(true)
@@ -275,10 +305,28 @@ export function VideoPlayer({
     setDuration(video.duration || 0)
   }, [])
 
+  // Auto-play
+  useEffect(() => {
+    if (!autoPlay) return
+    const video = videoRef.current
+    if (!video) return
+    const play = () => {
+      void video.play()
+      setIsPlaying(true)
+    }
+    if (video.readyState >= 2) {
+      play()
+    } else {
+      video.addEventListener('canplay', play, { once: true })
+      return () => video.removeEventListener('canplay', play)
+    }
+  }, [autoPlay])
+
   const handleEnded = useCallback(() => {
     setIsPlaying(false)
     setShowControls(true)
-  }, [])
+    onVideoEnded?.()
+  }, [onVideoEnded])
 
   const handleSeek = useCallback((value: number[]) => {
     if (videoRef.current && !isAdActive && !isMaskCompleted) {
@@ -400,15 +448,18 @@ export function VideoPlayer({
     setJustHit(true)
     setTimeout(() => setJustHit(false), 180)
 
-    const nextHitCount = Math.min(REQUIRED_HITS, hitCount + 1)
+    const nextHitCount = Math.min(targetHits, hitCount + 1)
     setHitCount(nextHitCount)
     onMaskHit?.(nextHitCount)
 
-    if (nextHitCount >= REQUIRED_HITS) {
+    if (nextHitCount >= targetHits) {
       setPhase('collected')
-      setIsPlaying(false)
-      videoRef.current?.pause()
       onMaskCompleted?.(maskRewardProduct)
+      // In shooting mode, keep video playing until it ends naturally
+      if (mode !== 'shooting') {
+        setIsPlaying(false)
+        videoRef.current?.pause()
+      }
     }
   }, [hitCount, isMaskPhase, isMaskCompleted, isPointInMask, maskRewardProduct, onMaskCompleted, onMaskHit])
 
@@ -446,23 +497,30 @@ export function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className={cn('relative overflow-hidden rounded-xl bg-black', isMaskPhase && 'cursor-crosshair', className)}
+      className={cn('relative overflow-hidden rounded-xl bg-black', isShootingMode && isMaskPhase && 'cursor-crosshair', className)}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && !isMaskPhase && setShowControls(false)}
-      onClick={undefined}
+      onClick={event => {
+        if (isMaskPhase && !isMaskCompleted) {
+          fireAt(event)
+        } else if (!isAdActive && !isMaskCompleted) {
+          togglePlay()
+        }
+      }}
     >
       {activeSrc ? (
         <video
           key={activeSrc}
           ref={videoRef}
           src={activeSrc}
-          className={cn('h-full w-full object-cover', isMaskCompleted && 'opacity-25')}
+          className={cn('h-full w-full object-cover', isMaskCompleted && mode !== 'shooting' && 'opacity-25')}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={handleEnded}
           onPause={onPause}
           onPlay={onPlay}
           playsInline
+          loop={loop}
         />
       ) : (
         <DemoVideoPlaceholder
@@ -541,7 +599,7 @@ export function VideoPlayer({
       </AnimatePresence>
 
       <AnimatePresence>
-        {isMaskPhase && !isMaskCompleted && showMask && (
+        {isMaskPhase && !isMaskCompleted && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -562,11 +620,11 @@ export function VideoPlayer({
                   <div className="h-3 overflow-hidden rounded-full border border-white/80 bg-black/60">
                     <motion.div
                       className="h-full bg-gradient-to-r from-red-500 to-lime-400"
-                      animate={{ width: `${((REQUIRED_HITS - hitCount) / REQUIRED_HITS) * 100}%` }}
+                      animate={{ width: `${((targetHits - hitCount) / targetHits) * 100}%` }}
                     />
                   </div>
                   <div className="mt-1 text-center text-xs font-bold text-white drop-shadow">
-                    {REQUIRED_HITS - hitCount} / {REQUIRED_HITS}
+                    {targetHits - hitCount} / {targetHits}
                   </div>
                 </div>
               </motion.div>
@@ -610,7 +668,8 @@ export function VideoPlayer({
         )}
       </AnimatePresence>
 
-      {isMaskCompleted && (
+      {/* Only show "collected" overlay in non-shooting mode; shooting mode keeps playing */}
+      {isMaskCompleted && mode !== 'shooting' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -639,7 +698,7 @@ export function VideoPlayer({
 
       {isMaskPhase && !isMaskCompleted && (
         <div className="pointer-events-none absolute left-4 top-4 z-30 rounded-md bg-black/60 px-3 py-2 text-sm text-white">
-          移动鼠标瞄准，点击发射 {hitCount}/{REQUIRED_HITS}
+          移动鼠标瞄准，点击发射 {hitCount}/{targetHits}
         </div>
       )}
 
@@ -681,6 +740,7 @@ export function VideoPlayer({
               onThrow={handleCharacterThrow}
               onClick={onCharacterClick}
               outfitIndex={outfitIndex}
+              equippedOutfitId={equippedOutfitId}
             />
           )}
 
