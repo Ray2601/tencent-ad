@@ -192,6 +192,20 @@ export default function AdvertiserPage() {
   const todayExposure = games.reduce((s, g) => s + g.exposure, 0)
   const avgClickRate = parseFloat((games.reduce((s, g) => s + g.adClickRate, 0) / games.length).toFixed(1))
 
+  // Cost per game type
+  const costByType = useMemo(() => {
+    const map = new Map<GameType, number>()
+    gamesByType.forEach((gs, type) => {
+      map.set(type, gs.reduce((s, g) => s + g.cost, 0))
+    })
+    return map
+  }, [gamesByType])
+
+  const totalRunningCost = games.filter(g => g.running).reduce((s, g) => s + g.cost, 0)
+  const manualModeCost = (['收集类', '射击类', '探秘类', '标签广告'] as GameType[])
+    .filter(t => manualTypes.has(t))
+    .reduce((s, t) => s + (costByType.get(t) || 0), 0)
+
   // Compare with average
   const compareAvg = (value: number, avg: number): 'up' | 'down' | 'equal' => {
     if (value > avg + 0.05) return 'up'
@@ -337,6 +351,7 @@ export default function AdvertiserPage() {
                 <div>
                   <div className="text-sm font-bold group-hover:text-amber-300 transition">自动模式</div>
                   <div className="text-xs text-white/50 mt-0.5">全品类 A/B test，自动投放所有互动类型对比效果</div>
+                  <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{totalRunningCost.toLocaleString()}</div>
                 </div>
               </label>
 
@@ -351,7 +366,8 @@ export default function AdvertiserPage() {
                 />
                 <div className="flex-1">
                   <div className="text-sm font-bold group-hover:text-amber-300 transition">手动模式</div>
-                  <div className="text-xs text-white/50 mt-0.5 mb-3">广告主勾选投放类型</div>
+                  <div className="text-xs text-white/50 mt-0.5 mb-1">广告主勾选投放类型</div>
+                  <div className="text-xs font-bold text-amber-400 mb-3">预估日耗：¥{manualModeCost.toLocaleString()}</div>
 
                   {conversionMode === 'manual' && (
                     <motion.div
@@ -359,7 +375,9 @@ export default function AdvertiserPage() {
                       animate={{ opacity: 1, height: 'auto' }}
                       className="flex flex-wrap gap-3"
                     >
-                      {(['收集类', '射击类', '探秘类', '标签广告'] as GameType[]).map(type => (
+                      {(['收集类', '射击类', '探秘类', '标签广告'] as GameType[]).map(type => {
+                        const typeCost = costByType.get(type) || 0
+                        return (
                         <label key={type} className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
@@ -368,8 +386,9 @@ export default function AdvertiserPage() {
                             className="accent-amber-500"
                           />
                           <span className="text-sm text-white/80">{type}</span>
+                          <span className="text-xs text-amber-400/70 font-medium">¥{typeCost}</span>
                         </label>
-                      ))}
+                      )})}
                     </motion.div>
                   )}
                 </div>
@@ -435,6 +454,7 @@ export default function AdvertiserPage() {
                         {isExpanded ? <ChevronDown className="h-4 w-4 text-white/50" /> : <ChevronRight className="h-4 w-4 text-white/50" />}
                         <span className="text-sm font-bold">{type}游戏</span>
                         <span className="text-xs text-white/45">（{typeGames.length}个）</span>
+                        <span className="ml-auto text-xs font-bold text-amber-400">¥{(costByType.get(type) || 0).toLocaleString()}</span>
                       </button>
 
                       {isExpanded && (
@@ -549,6 +569,7 @@ export default function AdvertiserPage() {
                       <div className="text-xs text-white/50 mt-0.5">
                         曝光 ≥ 1000 人时自动按优先级第一的指标扩量（该指标高于平均值的游戏优先获得预算）
                       </div>
+                      <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{totalRunningCost.toLocaleString()}</div>
                     </div>
                   </label>
 
@@ -567,6 +588,7 @@ export default function AdvertiserPage() {
                       <div className="text-xs text-white/50 mt-0.5">
                         喜欢收集 → 收集类 &nbsp;|&nbsp; 喜欢射击 → 射击类 &nbsp;|&nbsp; 喜欢剧情 → 探秘类
                       </div>
+                      <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{Math.round(totalRunningCost * 0.7).toLocaleString()}</div>
                     </div>
                   </label>
 
@@ -585,6 +607,7 @@ export default function AdvertiserPage() {
                       <div className="text-xs text-white/50 mt-0.5">
                         广告主观测数据后自己决定投放策略
                       </div>
+                      <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{totalRunningCost.toLocaleString()}</div>
                     </div>
                   </label>
                 </div>
@@ -597,7 +620,8 @@ export default function AdvertiserPage() {
                   animate={{ opacity: 1, height: 'auto' }}
                   className="mb-6 rounded-lg border border-white/8 bg-white/[0.02] p-4"
                 >
-                  <div className="text-sm font-bold mb-3 text-white/70">✅ 勾选继续投放的游戏</div>
+                  <div className="text-sm font-bold mb-1 text-white/70">✅ 勾选继续投放的游戏</div>
+                  <div className="text-xs text-amber-400 font-bold mb-3">勾选游戏日耗合计：¥{totalRunningCost.toLocaleString()}</div>
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     {games.map(game => {
                       const typeAvgs = avgByType.get(game.type)!
@@ -622,6 +646,7 @@ export default function AdvertiserPage() {
                           />
                           <span className="text-sm flex-1">{game.name}</span>
                           <span className="text-xs text-white/40">{game.type}</span>
+                          <span className="text-xs text-amber-400/80 font-medium">¥{game.cost}</span>
                           <span className={`text-xs font-bold ${isBelowAvg ? 'text-red-400' : 'text-emerald-400'}`}>
                             {primaryMetric.label} {formatRate(game[primaryKey])}
                             {isBelowAvg ? ' ↓' : ' ↑'}

@@ -14,7 +14,9 @@
       "Bash(cmd.exe *)",
       "Bash(powershell.exe *)",
       "Bash(curl *)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run *)",
+      "WebFetch(domain:localhost)"
     ]
   }
 }
