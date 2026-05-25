@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Maximize, Pause, Play, SkipForward, Volume2, VolumeX } from 'lucide-react'
+import { Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { ProgressBarCharacter } from '@/components/progress-bar-character'
@@ -683,15 +683,11 @@ export function VideoPlayer({
       )}
 
       {isAdActive && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
           <div className="text-center">
-            <div className="mb-4 text-lg font-medium text-white">
+            <div className="text-lg font-medium text-white">
               把商品拖到小人身上
             </div>
-            <Button variant="outline" size="sm" onClick={skipAd} className="gap-2">
-              <SkipForward className="h-4 w-4" />
-              跳过
-            </Button>
           </div>
         </div>
       )}
@@ -705,23 +701,6 @@ export function VideoPlayer({
       {isMaskPhase && !isMaskCompleted && !activeMaskFrame?.yellow_mask && (
         <div className="pointer-events-none absolute left-4 top-16 z-30 rounded-md bg-yellow-500/90 px-3 py-2 text-sm font-medium text-slate-950">
           当前帧没有高亮区域，等藏品再次出现。
-        </div>
-      )}
-
-      {isClimaxWindow && !isMaskCompleted && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/35 backdrop-blur-[2px]">
-          <div className="rounded-xl border border-white/15 bg-slate-950/85 p-5 text-center text-white shadow-2xl">
-            <div className="mb-3 text-sm font-bold">高潮广告阶段</div>
-            <Button
-              onClick={redeemClimaxSkip}
-              disabled={pointsBalance < skipCost}
-              className="gap-2 rounded-full"
-            >
-              <SkipForward className="h-4 w-4" />
-              消耗 {skipCost} 积分跳过
-            </Button>
-            <div className="mt-2 text-xs text-white/60">当前余额：{pointsBalance} 积分</div>
-          </div>
         </div>
       )}
 
