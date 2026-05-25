@@ -9,6 +9,9 @@ import {
   ChevronRight,
   GripVertical,
   LogOut,
+  Maximize,
+  Pause,
+  Play,
   Star,
   X,
 } from 'lucide-react'
@@ -81,6 +84,18 @@ export default function AdvertiserPage() {
   // ── 精准转化 ──
   const [conversionMode, setConversionMode] = useState<'auto' | 'manual'>('auto')
   const [manualTypes, setManualTypes] = useState<Set<GameType>>(new Set(['收集类', '射击类', '探秘类', '标签广告']))
+  const [autoVideosActive, setAutoVideosActive] = useState(false)
+  const [enlargedVideo, setEnlargedVideo] = useState<string | null>(null)
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
+
+  const autoVideos = [
+    { id: 'biaoqian', src: '/biaoqian.mp4', label: '标签广告', gameType: '标签广告' as GameType },
+    { id: 'sheji', src: '/sheji.mp4', label: '射击广告', gameType: '射击类' as GameType },
+    { id: 'tanmi', src: '/tanmi.mp4', label: '探秘广告', gameType: '探秘类' as GameType },
+    { id: 'shouji', src: '/shouji.mp4', label: '收集广告', gameType: '收集类' as GameType },
+  ]
+
+  const [deliveryError, setDeliveryError] = useState(false)
 
   // ── 快速复盘 ──
   const [checkedMetrics, setCheckedMetrics] = useState<Set<MetricKey>>(
@@ -126,12 +141,47 @@ export default function AdvertiserPage() {
 
   // Toggle manual type
   const toggleManualType = (type: GameType) => {
+    setDeliveryError(false)
     setManualTypes(prev => {
       const next = new Set(prev)
       if (next.has(type)) next.delete(type)
       else next.add(type)
       return next
     })
+  }
+
+  // Computed videos based on mode
+  const deliveryVideos = useMemo(() => {
+    if (conversionMode === 'auto') return autoVideos
+    return autoVideos.filter(v => manualTypes.has(v.gameType))
+  }, [conversionMode, manualTypes])
+
+  // Delivery handler
+  const handleStartDelivery = () => {
+    setDeliveryError(false)
+    if (conversionMode === 'manual' && manualTypes.size === 0) {
+      setDeliveryError(true)
+      setAutoVideosActive(false)
+      return
+    }
+    setAutoVideosActive(true)
+  }
+
+  const handlePlayVideo = (videoId: string) => {
+    if (playingVideoId === videoId) {
+      setPlayingVideoId(null)
+    } else {
+      setPlayingVideoId(videoId)
+    }
+  }
+
+  const handleEnlargeVideo = (videoId: string) => {
+    setEnlargedVideo(videoId)
+    setPlayingVideoId(null)
+  }
+
+  const handleCloseEnlarged = () => {
+    setEnlargedVideo(null)
   }
 
   // Toggle game running
@@ -288,11 +338,162 @@ export default function AdvertiserPage() {
             </div>
 
             {/* ══════════════════════════════════════════════════ */}
-            {/* 一、低预算试错                                       */}
+            {/* 一、精准转化                                        */}
             {/* ══════════════════════════════════════════════════ */}
             <section className="rounded-xl border border-white/10 bg-[#1a1c22] p-5">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-amber-500/20 text-xs text-amber-400">一</span>
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-500/20 text-xs text-emerald-400">一</span>
+                精准转化
+              </h2>
+
+              {/* Auto mode */}
+              <label className="flex items-start gap-3 mb-4 cursor-pointer group">
+                <input
+                  type="radio"
+                  name="conversionMode"
+                  checked={conversionMode === 'auto'}
+                  onChange={() => { setConversionMode('auto'); setDeliveryError(false) }}
+                  className="mt-0.5 accent-amber-500"
+                />
+                <div>
+                  <div className="text-sm font-bold group-hover:text-amber-300 transition">自动模式</div>
+                  <div className="text-xs text-white/50 mt-0.5">全品类 A/B test，自动投放所有互动类型对比效果</div>
+                  <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{totalRunningCost.toLocaleString()}</div>
+                </div>
+              </label>
+
+              {/* Manual mode */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="radio"
+                  name="conversionMode"
+                  checked={conversionMode === 'manual'}
+                  onChange={() => { setConversionMode('manual'); setDeliveryError(false) }}
+                  className="mt-0.5 accent-amber-500"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-bold group-hover:text-amber-300 transition">手动模式</div>
+                  <div className="text-xs text-white/50 mt-0.5 mb-1">广告主勾选投放类型</div>
+                  <div className="text-xs font-bold text-amber-400 mb-3">预估日耗：¥{manualModeCost.toLocaleString()}</div>
+
+                  {conversionMode === 'manual' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="flex flex-wrap gap-3"
+                    >
+                      {(['收集类', '射击类', '探秘类', '标签广告'] as GameType[]).map(type => {
+                        const typeCost = costByType.get(type) || 0
+                        return (
+                        <label key={type} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={manualTypes.has(type)}
+                            onChange={() => toggleManualType(type)}
+                            className="accent-amber-500"
+                          />
+                          <span className="text-sm text-white/80">{type}</span>
+                          <span className="text-xs text-amber-400/70 font-medium">¥{typeCost}</span>
+                        </label>
+                      )})}
+                    </motion.div>
+                  )}
+                </div>
+              </label>
+
+              {/* Validation error */}
+              {deliveryError && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-400">
+                  ⚠️ 请至少勾选一种广告类型
+                </div>
+              )}
+
+              <button
+                onClick={handleStartDelivery}
+                className="mt-5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-2.5 text-sm font-bold text-black hover:from-amber-400 hover:to-orange-400 transition"
+              >
+                开始投放
+              </button>
+
+              {/* Video grid */}
+              {autoVideosActive && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-5"
+                >
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-400">
+                      ✓ {conversionMode === 'auto' ? '已生成 4 个 A/B test 视频' : `已生成 ${deliveryVideos.length} 个视频`}
+                    </span>
+                    <span className="text-xs text-white/40">
+                      — {conversionMode === 'auto' ? '监测各品类效果后择优扩量' : '按勾选类型定向投放'}
+                    </span>
+                  </div>
+                  <div className={`grid gap-4 ${deliveryVideos.length <= 2 ? 'grid-cols-2' : deliveryVideos.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+                    {deliveryVideos.map(video => (
+                      <div
+                        key={video.id}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] overflow-hidden"
+                      >
+                        {/* Video area */}
+                        <div className="relative bg-black" style={{ aspectRatio: '4/3' }}>
+                          {playingVideoId === video.id ? (
+                            <video
+                              src={video.src}
+                              autoPlay
+                              controls={false}
+                              className="h-full w-full object-cover"
+                              onEnded={() => setPlayingVideoId(null)}
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-white/25 text-xs">
+                              点击播放预览
+                            </div>
+                          )}
+                        </div>
+                        {/* Label */}
+                        <div className="px-3 py-2">
+                          <div className="text-sm font-bold text-white/80 truncate">{video.label}</div>
+                        </div>
+                        {/* Buttons */}
+                        <div className="flex gap-2 px-3 pb-3">
+                          <button
+                            onClick={() => handlePlayVideo(video.id)}
+                            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-bold transition ${
+                              playingVideoId === video.id
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-white/5 text-white/60 hover:bg-white/10'
+                            }`}
+                          >
+                            {playingVideoId === video.id ? (
+                              <Pause className="h-3.5 w-3.5" />
+                            ) : (
+                              <Play className="h-3.5 w-3.5" />
+                            )}
+                            {playingVideoId === video.id ? '暂停' : '播放'}
+                          </button>
+                          <button
+                            onClick={() => handleEnlargeVideo(video.id)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-white/5 px-3 py-2 text-xs font-bold text-white/60 hover:bg-white/10 transition"
+                          >
+                            <Maximize className="h-3.5 w-3.5" />
+                            放大
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </section>
+
+            {/* ══════════════════════════════════════════════════ */}
+            {/* 二、低预算试错                                       */}
+            {/* ══════════════════════════════════════════════════ */}
+            <section className="rounded-xl border border-white/10 bg-[#1a1c22] p-5">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-amber-500/20 text-xs text-amber-400">二</span>
                 低预算试错
               </h2>
               <div className="flex flex-wrap items-center gap-4">
@@ -328,75 +529,6 @@ export default function AdvertiserPage() {
                   开始测试
                 </button>
               </div>
-            </section>
-
-            {/* ══════════════════════════════════════════════════ */}
-            {/* 二、精准转化                                        */}
-            {/* ══════════════════════════════════════════════════ */}
-            <section className="rounded-xl border border-white/10 bg-[#1a1c22] p-5">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-500/20 text-xs text-emerald-400">二</span>
-                精准转化
-              </h2>
-
-              {/* Auto mode */}
-              <label className="flex items-start gap-3 mb-4 cursor-pointer group">
-                <input
-                  type="radio"
-                  name="conversionMode"
-                  checked={conversionMode === 'auto'}
-                  onChange={() => setConversionMode('auto')}
-                  className="mt-0.5 accent-amber-500"
-                />
-                <div>
-                  <div className="text-sm font-bold group-hover:text-amber-300 transition">自动模式</div>
-                  <div className="text-xs text-white/50 mt-0.5">全品类 A/B test，自动投放所有互动类型对比效果</div>
-                  <div className="text-xs font-bold text-amber-400 mt-1">预估日耗：¥{totalRunningCost.toLocaleString()}</div>
-                </div>
-              </label>
-
-              {/* Manual mode */}
-              <label className="flex items-start gap-3 cursor-pointer group">
-                <input
-                  type="radio"
-                  name="conversionMode"
-                  checked={conversionMode === 'manual'}
-                  onChange={() => setConversionMode('manual')}
-                  className="mt-0.5 accent-amber-500"
-                />
-                <div className="flex-1">
-                  <div className="text-sm font-bold group-hover:text-amber-300 transition">手动模式</div>
-                  <div className="text-xs text-white/50 mt-0.5 mb-1">广告主勾选投放类型</div>
-                  <div className="text-xs font-bold text-amber-400 mb-3">预估日耗：¥{manualModeCost.toLocaleString()}</div>
-
-                  {conversionMode === 'manual' && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="flex flex-wrap gap-3"
-                    >
-                      {(['收集类', '射击类', '探秘类', '标签广告'] as GameType[]).map(type => {
-                        const typeCost = costByType.get(type) || 0
-                        return (
-                        <label key={type} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={manualTypes.has(type)}
-                            onChange={() => toggleManualType(type)}
-                            className="accent-amber-500"
-                          />
-                          <span className="text-sm text-white/80">{type}</span>
-                          <span className="text-xs text-amber-400/70 font-medium">¥{typeCost}</span>
-                        </label>
-                      )})}
-                    </motion.div>
-                  )}
-                </div>
-              </label>
-
-              <button className="mt-5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-2.5 text-sm font-bold text-black hover:from-amber-400 hover:to-orange-400 transition">
-                开始投放
-              </button>
             </section>
 
             {/* ══════════════════════════════════════════════════ */}
@@ -814,6 +946,60 @@ export default function AdvertiserPage() {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* ── 视频放大弹窗 ──────────────────────────────────── */}
+      <AnimatePresence>
+        {enlargedVideo && (() => {
+          const video = autoVideos.find(v => v.id === enlargedVideo)!
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              onClick={handleCloseEnlarged}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={e => e.stopPropagation()}
+                className="relative w-1/2 rounded-xl border border-white/15 bg-[#0d0e12] overflow-hidden shadow-2xl"
+              >
+                {/* Close button */}
+                <button
+                  onClick={handleCloseEnlarged}
+                  className="absolute right-3 top-3 z-10 rounded-lg bg-black/60 p-1.5 text-white/60 hover:bg-black/80 hover:text-white transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                {/* Video */}
+                <div className="bg-black">
+                  <video
+                    src={video.src}
+                    autoPlay
+                    controls
+                    className="w-full"
+                    style={{ aspectRatio: '16/9' }}
+                  />
+                </div>
+
+                {/* Info bar */}
+                <div className="flex items-center justify-between px-5 py-4">
+                  <div>
+                    <div className="text-lg font-bold text-white">{video.label}</div>
+                    <div className="text-xs text-white/45 mt-0.5">A/B test 自动投放中 · 全品类对比</div>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
+                    投放中
+                  </span>
+                </div>
+              </motion.div>
+            </motion.div>
+          )
+        })()}
       </AnimatePresence>
     </main>
   )

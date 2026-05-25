@@ -503,7 +503,7 @@ export function VideoPlayer({
       onClick={event => {
         if (isMaskPhase && !isMaskCompleted) {
           fireAt(event)
-        } else if (!isAdActive && !isMaskCompleted) {
+        } else if (!isAdActive && !isMaskCompleted && !isLabelMode) {
           togglePlay()
         }
       }}

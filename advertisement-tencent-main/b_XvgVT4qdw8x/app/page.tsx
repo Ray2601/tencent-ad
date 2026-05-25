@@ -88,6 +88,8 @@ const stage2Reward: Product = {
 }
 
 const STAGE2_HP = 5
+const STAGE1_SKIP_COST = 100
+const STAGE2_SKIP_COST = 150
 const STAGE3_SKIP_COST = 150
 
 // Stage 3 reward: CandyMoyo nail polish
@@ -257,18 +259,23 @@ export default function InteractiveAdPage() {
     goToStage(currentStage + 1)
   }, [currentStage, goToStage])
 
-  // Stage 3 skip
-  const handleStage3Skip = useCallback(() => {
-    if (totalPoints < STAGE3_SKIP_COST) return
-    const success = spendPoints(STAGE3_SKIP_COST)
+  // Skip current stage
+  const handleStageSkip = useCallback(() => {
+    const cost = currentStage === 0 ? STAGE1_SKIP_COST : currentStage === 1 ? STAGE2_SKIP_COST : STAGE3_SKIP_COST
+    if (totalPoints < cost) return
+    const success = spendPoints(cost)
     if (success) {
-      setStage3Skipped(true)
-      setStage3ShowQuiz(false)
-      setAdCompleted(true)
+      if (isStage3) {
+        setStage3Skipped(true)
+        setStage3ShowQuiz(false)
+        setAdCompleted(true)
+      } else {
+        goToStage(currentStage + 1)
+      }
       setCharacterEmotion('happy')
-      logAction({ type: 'redeem_skip', details: { cost: STAGE3_SKIP_COST } })
+      logAction({ type: 'redeem_skip', details: { stage: currentStage, cost } })
     }
-  }, [totalPoints, spendPoints, logAction])
+  }, [currentStage, isStage3, totalPoints, spendPoints, goToStage, logAction])
 
   // Stage 3: open quiz on video click
   const handleStage3VideoClick = useCallback(() => {
@@ -508,11 +515,30 @@ export default function InteractiveAdPage() {
             />
           )}
 
+          {/* Skip button for Stage 1 & 2 */}
+          {(isStage1 || isStage2) && (
+            <div className="absolute right-4 top-14 z-40">
+              <button
+                onClick={handleStageSkip}
+                disabled={totalPoints < (isStage1 ? STAGE1_SKIP_COST : STAGE2_SKIP_COST)}
+                className={`rounded-full px-4 py-2 text-sm font-bold transition shadow-lg ${
+                  totalPoints >= (isStage1 ? STAGE1_SKIP_COST : STAGE2_SKIP_COST)
+                    ? 'bg-yellow-500 text-black hover:bg-yellow-400'
+                    : 'cursor-not-allowed bg-gray-600/80 text-gray-300'
+                }`}
+              >
+                {totalPoints >= (isStage1 ? STAGE1_SKIP_COST : STAGE2_SKIP_COST)
+                  ? `跳过广告 (${isStage1 ? STAGE1_SKIP_COST : STAGE2_SKIP_COST}分)`
+                  : `积分不足 (${totalPoints}/${isStage1 ? STAGE1_SKIP_COST : STAGE2_SKIP_COST})`}
+              </button>
+            </div>
+          )}
+
           {/* Stage 3 skip button (always visible in top-right) */}
           {isStage3 && !stage3Skipped && (
             <div className="absolute right-4 top-14 z-40">
               <button
-                onClick={handleStage3Skip}
+                onClick={handleStageSkip}
                 disabled={totalPoints < STAGE3_SKIP_COST}
                 className={`rounded-full px-4 py-2 text-sm font-bold transition shadow-lg ${
                   totalPoints >= STAGE3_SKIP_COST
@@ -790,20 +816,59 @@ function CharacterSpace({
   balance: number; outfits: Product[]; ownedProductIds: Set<string>
   equippedOutfitId: string | null; wearCost: number; onEquipOutfit: (p: Product) => boolean
 }) {
+  const [dragOverChar, setDragOverChar] = useState(false)
+
   if (!open) return null
+
+  const handleDragStart = (e: React.DragEvent, product: Product) => {
+    e.dataTransfer.setData('text/plain', product.id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOverChar = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverChar(true)
+  }
+
+  const handleDragLeaveChar = () => setDragOverChar(false)
+
+  const handleDropOnChar = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOverChar(false)
+    const productId = e.dataTransfer.getData('text/plain')
+    const product = products.find(p => p.id === productId)
+    if (product) onGift(product)
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/45" onClick={onClose}>
       <motion.aside initial={{ x: 420 }} animate={{ x: 0 }} exit={{ x: 420 }} className="absolute right-0 top-0 flex h-full w-full max-w-[420px] flex-col bg-slate-950 p-5 text-white shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="mb-5 flex items-start justify-between">
           <div>
             <div className="text-lg font-black">小人空间</div>
-            <div className="mt-1 text-xs text-white/55">把广告礼物送给小人，解锁表情和品牌。</div>
+            <div className="mt-1 text-xs text-white/55">拖拽广告卡片到小人身上，或直接点击送礼。</div>
           </div>
           <button type="button" onClick={onClose} className="rounded-full bg-white/10 px-3 py-1 text-sm">关闭</button>
         </div>
-        <div className="grid place-items-center rounded-xl border border-white/10 bg-white/[0.04] p-5">
+        <div
+          onDragOver={handleDragOverChar}
+          onDragLeave={handleDragLeaveChar}
+          onDrop={handleDropOnChar}
+          className={cn(
+            'grid place-items-center rounded-xl border p-5 transition',
+            dragOverChar
+              ? 'border-amber-400 bg-amber-500/15 scale-[1.02] shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+              : 'border-white/10 bg-white/[0.04]'
+          )}
+        >
           <Character emotion="happy" />
-          <div className="mt-2 rounded-full bg-white/10 px-4 py-2 text-sm">今天喜欢 Chanel 和 Nike。</div>
+          <div className={cn(
+            'mt-2 rounded-full px-4 py-2 text-sm transition',
+            dragOverChar ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10'
+          )}>
+            {dragOverChar ? '松手送出礼物！' : '今天喜欢 Chanel 和 Nike。'}
+          </div>
         </div>
         <div className="mt-5 flex items-center justify-between text-sm">
           <span className="font-bold">方超穿搭</span>
@@ -833,7 +898,16 @@ function CharacterSpace({
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3">
           {products.map(product => (
-            <motion.button key={product.id} type="button" whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }} onClick={() => onGift(product)} className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-left shadow-lg transition hover:border-primary/70">
+            <motion.button
+              key={product.id}
+              type="button"
+              draggable
+              onDragStart={(e) => handleDragStart(e as any, product)}
+              whileHover={{ y: -3 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => onGift(product)}
+              className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-left shadow-lg transition hover:border-primary/70 cursor-grab active:cursor-grabbing"
+            >
               <div className="aspect-square overflow-hidden rounded-md bg-white/10">
                 <img src={product.image} alt="" className="h-full w-full object-cover" />
               </div>
